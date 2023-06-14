@@ -1,15 +1,42 @@
 #!/usr/bin/env python3
 import subprocess
-import random
+from secrets import randbelow
 import time
 import sys
 from multiprocessing import cpu_count
+
+# read the order from the header file
+# this is the simplest method I found so the user doesn't need to modify 2 files or use a config file
+with open("pollard_rho_worker.h", "r") as f:
+    for line in f.readlines():
+        if line.startswith("#define ORDER"):
+            order = int(line.split('"')[1].split('"')[0], 16)
+
+DPOINTS = {}
 
 # choose how many parallel processes you want to launch (default: number of CPU)
 num_processes = cpu_count()
 
 def newP():
-    return subprocess.Popen(["./pollard_rho", str(random.randint(0, 2**64))], stdout=subprocess.PIPE)
+    return subprocess.Popen(["./worker", str(randbelow(2**64))], stdout=subprocess.PIPE)
+
+def parseStdout(p):
+    # U.x,a,b
+    stdout, _ = process.communicate()
+    return [int(e, 16) for e in stdout.decode().strip().split(",")]
+
+def checkFound(p):
+    x, a, b = parseStdout(process)
+    known = DPOINTS.get(x)
+    if known is not None:
+        a_, b_ = known
+        if b_ != b:
+            priv = (a-a_)*pow(b_-b, -1, order)
+            priv %= order
+            print(f"Found private key ! x = {priv}")
+            return True
+    else:
+        DPOINTS[x] = (a, b)
 
 if __name__ == '__main__':
     processes = [newP() for _ in range(num_processes)]
@@ -19,16 +46,15 @@ if __name__ == '__main__':
             return_code = process.poll()
 
             if return_code == 0:
-                stdout, _ = process.communicate()
-                print(stdout.decode().strip())
-                for remaining_process in processes:
-                    if remaining_process.poll() is None:
-                        remaining_process.terminate()
-                sys.exit(0)
-
-            elif return_code is not None:
+                if checkFound(process):
+                    # kill all previous processes and exit
+                    for remaining_process in processes:
+                        if remaining_process.poll() is None:
+                            remaining_process.terminate()
+                    sys.exit(0)
                 # Respawn a new process if the previous one has finished
                 processes[i] = newP()
+
         # sleep to not consume CPU power endlessly polling
-        time.sleep(10)
+        time.sleep(3)
 

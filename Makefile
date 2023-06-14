@@ -1,10 +1,10 @@
-TARGET_EXEC ?= pollard_rho
+TARGET_EXEC ?= worker
 
 SRCS := $(shell find . -name '*.c')
 OBJECTS := $(SRCS:%.c=%.o)
 
 # Add include dir and lib path, with all the warnings
-CFLAGS=-c -Wall
+CFLAGS=-c -Wall -Werror -O2
 LDFLAGS=-lgmp
 
 $(TARGET_EXEC): $(OBJECTS)
