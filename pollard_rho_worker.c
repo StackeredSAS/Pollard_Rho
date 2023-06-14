@@ -23,8 +23,8 @@ void iter(ECC_ctx ctx, Pet p) {
         pointAdd(ctx, p->U, ctx->G);
         // this means we have incremented a
         mpz_add_ui(p->a, p->a, 1);
-        // we work modulo the order of G
-        mpz_mod(p->a, p->a, ctx->q);
+        // we work modulo the order of G but it should never be necesseray to reduce
+        // mpz_mod(p->a, p->a, ctx->q);
     }
     else if (H == 1) {
         // U = 2U
@@ -41,8 +41,8 @@ void iter(ECC_ctx ctx, Pet p) {
         pointAdd(ctx, p->U, ctx->Q);
         // this means we have incremented b
         mpz_add_ui(p->b, p->b, 1);
-        // we work modulo the order of G
-        mpz_mod(p->b, p->b, ctx->q);
+        // we work modulo the order of G but it should never be necesseray to reduce
+        // mpz_mod(p->b, p->b, ctx->q);
     }
 }
 

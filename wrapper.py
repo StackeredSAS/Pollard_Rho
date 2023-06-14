@@ -43,18 +43,16 @@ if __name__ == '__main__':
 
     while True:
         for i, process in enumerate(processes):
-            return_code = process.poll()
-
-            if return_code == 0:
+            if process.poll() == 0:
+                # Respawn a new process because the previous one has finished
+                processes[i] = newP()
                 if checkFound(process):
                     # kill all previous processes and exit
                     for remaining_process in processes:
                         if remaining_process.poll() is None:
                             remaining_process.terminate()
                     sys.exit(0)
-                # Respawn a new process if the previous one has finished
-                processes[i] = newP()
 
         # sleep to not consume CPU power endlessly polling
-        time.sleep(3)
+        time.sleep(1)
 
