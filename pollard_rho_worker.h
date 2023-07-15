@@ -18,11 +18,16 @@
 #define QX "5D8DBE75198015EC41C45AAB6143542EB098F6A5CC9CE4178A1B8A1E7ABBB5BC64DF64FAF6177DC1B0988AB00BA94BF8"
 #define QY "23A2909A0B4803C89F910C7191758B48746CEA4D5FF07667444ACDB9512080DBCA55E6EBF30433672B894F44ACE92BFA"
 
-#define NPETS 100
+// batch size
+#define NPETS 10
 // distinguished point has 24 zero LSB (this is arbitrary)
 #define DIST (1u << 24)
+// number of distinguished point to find before quitting
+#define NPOINTS 3
+// maximum iterations before quitting
+#define MAX_ITER 40000000
 
-mpz_t bs[NPETS];
+mpz_t bs[NPETS + 2];
 
 // Pet (turtle, snail, hare)
 typedef struct {

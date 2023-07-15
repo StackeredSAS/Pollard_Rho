@@ -23,21 +23,24 @@ def newP():
 def parseStdout(p):
     # U.x,a,b
     stdout, _ = process.communicate()
-    return [int(e, 16) for e in stdout.decode().strip().split(",")]
+    lines = stdout.decode().strip().split("\n")
+    if len(lines) == 1:
+        return []
+    return [[int(e, 16) for e in x.split(",")] for x in lines]
 
 def checkFound(p):
-    x, a, b = parseStdout(process)
-    print(hex(x))
-    known = DPOINTS.get(x)
-    if known is not None:
-        a_, b_ = known
-        if b_ != b:
-            priv = (a-a_)*pow(b_-b, -1, order)
-            priv %= order
-            print(f"Found private key ! x = {priv}")
-            return True
-    else:
-        DPOINTS[x] = (a, b)
+    for line in parseStdout(process):
+        x, a, b = line
+        known = DPOINTS.get(x)
+        if known is not None:
+            a_, b_ = known
+            if b_ != b:
+                priv = (a-a_)*pow(b_-b, -1, order)
+                priv %= order
+                print(f"Found private key ! x = {priv}")
+                return True
+        else:
+            DPOINTS[x] = (a, b)
 
 if __name__ == '__main__':
     processes = [newP() for _ in range(num_processes)]

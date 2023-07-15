@@ -27,6 +27,10 @@ void init_ctx(ECC_ctx ctx, const char *p, const char *a, const char *q) {
     mpz_init_set_str(ctx->p, p, 16);
     mpz_init_set_str(ctx->a, a, 16);
     mpz_init_set_str(ctx->q, q, 16);
+    // global vars
+    mpz_init(r);
+    mpz_init(lambda);
+    mpz_init(tmp);
 }
 
 // Clears an ECC context
@@ -35,6 +39,10 @@ void clear_ctx(ECC_ctx ctx) {
     mpz_clear(ctx->p);
     mpz_clear(ctx->a);
     mpz_clear(ctx->q);
+    // global vars
+    mpz_clear(r);
+    mpz_clear(lambda);
+    mpz_clear(tmp);
 }
 
 int pointEqual(Point A, Point B) {
@@ -47,17 +55,13 @@ int isInfinity(Point A) {
 }
 
 void pointDouble_slow(ECC_ctx ctx, Point P) {
-    mpz_t r;
-    mpz_init(r);
     mpz_mul_ui(r, P->y, 2);
     mpz_invert(r, r, ctx->p);
     pointDouble(ctx, P, r);
-    mpz_clear(r);
 }
 
 void pointDouble(ECC_ctx ctx, Point P, mpz_t r) {
     // P = P*2
-    mpz_t lambda, tmp;
 
     if (isInfinity(P)) {
         // do nothing
@@ -65,10 +69,8 @@ void pointDouble(ECC_ctx ctx, Point P, mpz_t r) {
     }
 
     // compute lambda = 3x^2 + a / 2y mod p
-    mpz_init_set(lambda, ctx->a); // lambda = a
-    mpz_init_set(tmp, P->x); // tmp = x
-
-    mpz_powm_ui(tmp, tmp, 2, ctx->p); // tmp = x^2 mod p
+    mpz_set(lambda, ctx->a); // lambda = a
+    mpz_powm_ui(tmp, P->x, 2, ctx->p); // tmp = x^2 mod p
     mpz_addmul_ui(lambda, tmp, 3); // lambda = 3x^2 + a
     mpz_mod(lambda, lambda, ctx->p); // lambda = 3x^2 + a mod p
 
@@ -88,24 +90,17 @@ void pointDouble(ECC_ctx ctx, Point P, mpz_t r) {
     mpz_mod(P->y, P->y, ctx->p); // y = l(x - tmp) - y mod p
 
     // store new X
-    mpz_mod(P->x, tmp, ctx->p);
-
-    mpz_clear(lambda);
-    mpz_clear(tmp);
+    mpz_set(P->x, tmp);
 }
 
 void pointAdd_slow(ECC_ctx ctx, Point P, Point Q) {
-    mpz_t r;
-    mpz_init(r);
     mpz_sub(r, Q->x, P->x);
     mpz_invert(r, r, ctx->p);
     pointAdd(ctx, P, Q, r);
-    mpz_clear(r);
 }
 
 void pointAdd(ECC_ctx ctx, Point P, Point Q, mpz_t r) {
     // P = P + Q
-    mpz_t lambda, tmp;
 
     if (pointEqual(P, Q)) {
         // Double and return
@@ -129,9 +124,7 @@ void pointAdd(ECC_ctx ctx, Point P, Point Q, mpz_t r) {
     }
 
     // compute lambda = (Yq - Yp) / (Xq - Xp) mod p
-    mpz_init(lambda);
-    mpz_init_set(tmp, Q->y); // tmp = Yq
-    mpz_sub(tmp, tmp, P->y); // tmp = Yq - Yp
+    mpz_sub(tmp, Q->y, P->y); // tmp = Yq - Yp
     mpz_mul(lambda, r, tmp); // lamda = (Yq - Yp) / (Xq - Xp)
     mpz_mod(lambda, lambda, ctx->p); // lambda = (Yq - Yp) / (Xq - Xp) mod p
 
@@ -148,10 +141,7 @@ void pointAdd(ECC_ctx ctx, Point P, Point Q, mpz_t r) {
     mpz_mod(P->y, P->y, ctx->p); // y = l(x - tmp) - y mod p
 
     // store new X
-    mpz_mod(P->x, tmp, ctx->p);
-
-    mpz_clear(lambda);
-    mpz_clear(tmp);
+    mpz_set(P->x, tmp);
 }
 
 void pointMul(ECC_ctx ctx, Point P, mpz_t k) {

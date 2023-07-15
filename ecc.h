@@ -24,6 +24,8 @@ typedef struct {
     Point Q;
 } ECC_ctx_t[1], *ECC_ctx;
 
+mpz_t lambda, tmp, r;
+
 void init_point_coord(Point P, const char *x, const char *y);
 void copy_point(Point P, Point Q);
 void clear_point(Point P);
