@@ -27,6 +27,7 @@ def parseStdout(p):
 
 def checkFound(p):
     x, a, b = parseStdout(process)
+    print(hex(x))
     known = DPOINTS.get(x)
     if known is not None:
         a_, b_ = known

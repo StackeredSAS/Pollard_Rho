@@ -6,11 +6,37 @@
 #include "pollard_rho_worker.h"
 
 
-void batch_invert(Pet_t p[], mpz_t prime, int size) {
-    for (size_t i = 0; i < size; i++)
+void batch_invert_(Pet_t p[], mpz_t prime) {
+    for (size_t i = 0; i < NPETS; i++)
     {
         mpz_invert(p[i]->r, p[i]->r, prime);
     }
+}
+
+void batch_invert(Pet_t p[], mpz_t prime) {
+    mpz_t t, tmp;
+    mpz_set(bs[0], p[0]->r);
+    mpz_init(t);
+    mpz_init(tmp);
+
+    for (size_t i = 1; i < NPETS; i++) {
+        mpz_mul(bs[i], bs[i-1], p[i]->r);
+        mpz_mod(bs[i], bs[i], prime);
+    }
+
+    mpz_invert(t, bs[NPETS-1], prime);
+
+    for (size_t i = NPETS-1; i > 0; i--) {
+        mpz_set(tmp, p[i]->r);
+        mpz_mul(p[i]->r, t, bs[i-1]);
+        mpz_mod(p[i]->r, p[i]->r, prime);
+        mpz_mul(t, tmp, t);
+        mpz_mod(t, t, prime);
+    } 
+    mpz_set(p[0]->r, t);
+
+    mpz_clear(t);
+    mpz_clear(tmp);
 }
 
 void iter_pre(ECC_ctx ctx, Pet p) {
@@ -82,12 +108,11 @@ int pollard_rho_worker(mpz_t seed) {
         Parallelized Pollard's Rho algorithm worker process.
         Walk a pseudo-random sequence until a distinguished point is found.
     */
-    int NPETS = 100; // 1: 5_720_567  2: 11_441_133   100: 13_603_690
     ECC_ctx_t ctx;
     Point_t G, Q;
     Pet_t pets[NPETS];
     gmp_randstate_t state;
-    unsigned int count = 0;
+    //unsigned int count = 0;
     size_t i;
     int found;
 
@@ -116,21 +141,21 @@ int pollard_rho_worker(mpz_t seed) {
         }
 
         // compute the inverses in batch to speed things up
-        batch_invert(pets, ctx->p, NPETS);
+        batch_invert(pets, ctx->p);
 
         // iter all pets and check for distinguised point
         for (i = 0; i < NPETS && !found; i++) {
             iter(ctx, pets[i]);
             // distinguished point has 24 zero LSB (this is arbitrary)
-            found |= (pets[i]->U->x->_mp_d[0] % 0x1000000 == 0);
-            count++;
+            found |= (pets[i]->U->x->_mp_d[0] % DIST == 0);
+            //count++;
         }
 
     // next batch
     } while (!found);
 
     print_Pet(pets[i-1]); // i-1 points to the distinguished point Pet
-    printf("nb iter: %u\n", count);
+    //printf("nb iter: %u\n", count);
     
     clear_point(G);
     clear_point(Q);
@@ -146,6 +171,7 @@ int pollard_rho_worker(mpz_t seed) {
 
 int main(int argc, char *argv[]) {
     mpz_t seed;
+    for (size_t i = 0; i < NPETS; i++) mpz_init(bs[i]);
     if (argc < 2) {
         // in case no seed is given, just use the current time
         // mpz_init_set_ui(seed, time(NULL));
@@ -156,5 +182,6 @@ int main(int argc, char *argv[]) {
     }
     int ret = pollard_rho_worker(seed);
     mpz_clear(seed);
+    for (size_t i = 0; i < NPETS; i++) mpz_clear(bs[i]);
     return ret;
 }
