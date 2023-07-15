@@ -6,6 +6,13 @@
 #include "pollard_rho_worker.h"
 
 
+void batch_invert(Pet_t p[], mpz_t prime, int size) {
+    for (size_t i = 0; i < size; i++)
+    {
+        mpz_invert(p[i]->r, p[i]->r, prime);
+    }
+}
+
 void iter_pre(ECC_ctx ctx, Pet p) {
     /*
         Just compute the value we will need to invert during the batch inversion process.
@@ -43,7 +50,7 @@ void iter(ECC_ctx ctx, Pet p) {
 
     if (H == 0) {
         // U = U + G
-        pointAdd_slow(ctx, p->U, ctx->G);
+        pointAdd(ctx, p->U, ctx->G, p->r);
         // this means we have incremented a
         mpz_add_ui(p->a, p->a, 1);
         // we work modulo the order of G but it should never be necesseray to reduce
@@ -51,7 +58,7 @@ void iter(ECC_ctx ctx, Pet p) {
     }
     else if (H == 1) {
         // U = 2U
-        pointDouble_slow(ctx, p->U);
+        pointDouble(ctx, p->U, p->r);
         // this means we have doubled a and b
         mpz_mul_ui(p->a, p->a, 2);
         mpz_mul_ui(p->b, p->b, 2);
@@ -61,7 +68,7 @@ void iter(ECC_ctx ctx, Pet p) {
     }
     else if (H == 2) {
         // U = U + Q
-        pointAdd_slow(ctx, p->U, ctx->Q);
+        pointAdd(ctx, p->U, ctx->Q, p->r);
         // this means we have incremented b
         mpz_add_ui(p->b, p->b, 1);
         // we work modulo the order of G but it should never be necesseray to reduce
@@ -102,6 +109,15 @@ int pollard_rho_worker(mpz_t seed) {
     do {
         // no dinstinguished point found in this batch
         found = 0;
+
+        // compute the value to invert for all pets
+        for (i = 0; i < NPETS && !found; i++) {
+            iter_pre(ctx, pets[i]);
+        }
+
+        // compute the inverses in batch to speed things up
+        batch_invert(pets, ctx->p, NPETS);
+
         // iter all pets and check for distinguised point
         for (i = 0; i < NPETS && !found; i++) {
             iter(ctx, pets[i]);
@@ -109,6 +125,7 @@ int pollard_rho_worker(mpz_t seed) {
             found |= (pets[i]->U->x->_mp_d[0] % 0x1000000 == 0);
             count++;
         }
+
     // next batch
     } while (!found);
 
