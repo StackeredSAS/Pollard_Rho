@@ -25,6 +25,7 @@ typedef struct {
     Point_t U;
 	mpz_t a;
 	mpz_t b;
+    mpz_t r;
 } Pet_t[1], *Pet;
 
 void init_randomPet(ECC_ctx ctx, gmp_randstate_t state, Pet p) {
@@ -36,13 +37,14 @@ void init_randomPet(ECC_ctx ctx, gmp_randstate_t state, Pet p) {
     Point_t tmp;
     mpz_init(p->a);
     mpz_init(p->b);
+    mpz_init(p->r);
     mpz_urandomm(p->a, state, ctx->q);
     mpz_urandomm(p->b, state, ctx->q);
     copy_point(p->U, ctx->G); // U = G
     copy_point(tmp, ctx->Q); // tmp = Q
     pointMul(ctx, p->U, p->a); // U = aG
     pointMul(ctx, tmp, p->b); // tmp = bQ
-    pointAdd(ctx, p->U, tmp); // U = aG + bQ
+    pointAdd_slow(ctx, p->U, tmp); // U = aG + bQ
     clear_point(tmp);
 }
 
@@ -50,6 +52,7 @@ void clear_Pet(Pet p) {
     clear_point(p->U);
     mpz_clear(p->a);
     mpz_clear(p->b);
+    mpz_clear(p->r);
 }
 
 void print_Pet(Pet p) {

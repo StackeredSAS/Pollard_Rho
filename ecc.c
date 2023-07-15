@@ -46,7 +46,16 @@ int isInfinity(Point A) {
     return mpz_cmp_ui(A->z, 0) == 0 && mpz_cmp_ui(A->y, 1) == 0;
 }
 
-void pointDouble(ECC_ctx ctx, Point P) {
+void pointDouble_slow(ECC_ctx ctx, Point P) {
+    mpz_t r;
+    mpz_init(r);
+    mpz_mul_ui(r, P->y, 2);
+    mpz_invert(r, r, ctx->p);
+    pointDouble(ctx, P, r);
+    mpz_clear(r);
+}
+
+void pointDouble(ECC_ctx ctx, Point P, mpz_t r) {
     // P = P*2
     mpz_t lambda, tmp;
 
@@ -63,11 +72,7 @@ void pointDouble(ECC_ctx ctx, Point P) {
     mpz_addmul_ui(lambda, tmp, 3); // lambda = 3x^2 + a
     mpz_mod(lambda, lambda, ctx->p); // lambda = 3x^2 + a mod p
 
-    mpz_set(tmp, P->y); // tmp = y
-    mpz_mul_ui(tmp, tmp, 2); // tmp = 2y
-    mpz_invert(tmp, tmp, ctx->p); // tmp = 2y^-1 mod p
-
-    mpz_mul(lambda, lambda, tmp); // lamda = 3x^2 + a / 2y
+    mpz_mul(lambda, lambda, r); // lamda = 3x^2 + a / 2y
     mpz_mod(lambda, lambda, ctx->p); // lambda = 3x^2 + a / 2y mod p
 
     // New X
@@ -89,13 +94,24 @@ void pointDouble(ECC_ctx ctx, Point P) {
     mpz_clear(tmp);
 }
 
-void pointAdd(ECC_ctx ctx, Point P, Point Q) {
+void pointAdd_slow(ECC_ctx ctx, Point P, Point Q) {
+    mpz_t r;
+    mpz_init(r);
+    mpz_sub(r, Q->x, P->x);
+    mpz_invert(r, r, ctx->p);
+    pointAdd(ctx, P, Q, r);
+    mpz_clear(r);
+}
+
+void pointAdd(ECC_ctx ctx, Point P, Point Q, mpz_t r) {
     // P = P + Q
     mpz_t lambda, tmp;
 
     if (pointEqual(P, Q)) {
         // Double and return
-        pointDouble(ctx, P);
+        // if we get here and have precomputed the inverse, it is most likely incorrect
+        // ignore it and do a slow double
+        pointDouble_slow(ctx, P);
         return;
     }
 
@@ -112,16 +128,12 @@ void pointAdd(ECC_ctx ctx, Point P, Point Q) {
         return;
     }
 
-    // compute lambda = (Yq - Yp) / (Xq - Xp)mod p
-    mpz_init_set(lambda, Q->x); // lambda = Xq
+    // compute lambda = (Yq - Yp) / (Xq - Xp) mod p
+    mpz_init(lambda);
     mpz_init_set(tmp, Q->y); // tmp = Yq
-
-    mpz_sub(lambda, lambda, P->x); // lambda = Xq - Xp
-    mpz_invert(lambda, lambda, ctx->p); // lambda = (Xq - Xp)^-1 mod p
     mpz_sub(tmp, tmp, P->y); // tmp = Yq - Yp
-    
-    mpz_mul(lambda, lambda, tmp); // lamda = (Xq - Xp) / (Yq - Yp)
-    mpz_mod(lambda, lambda, ctx->p); // lambda =(Xq - Xp) / (Yq - Yp) mod p
+    mpz_mul(lambda, r, tmp); // lamda = (Yq - Yp) / (Xq - Xp)
+    mpz_mod(lambda, lambda, ctx->p); // lambda = (Yq - Yp) / (Xq - Xp) mod p
 
     // New X
     mpz_powm_ui(tmp, lambda, 2, ctx->p); // tmp = l^2 mod p
@@ -155,9 +167,9 @@ void pointMul(ECC_ctx ctx, Point P, mpz_t k) {
 	for (i = 0; i<size; i++) {
 		index = mpz_scan1(k, i);
 		if (index == i) {
-			pointAdd(ctx, tmp, P);
+			pointAdd_slow(ctx, tmp, P);
 		}
-        pointDouble(ctx, P);
+        pointDouble_slow(ctx, P);
 	}
 
     mpz_set(P->x, tmp->x);

@@ -6,6 +6,29 @@
 #include "pollard_rho_worker.h"
 
 
+void iter_pre(ECC_ctx ctx, Pet p) {
+    /*
+        Just compute the value we will need to invert during the batch inversion process.
+    */
+    unsigned char H = p->U->x->_mp_d[0] % 3; // _mp_d[0] is the least significant limb
+
+    if (H == 0) {
+        // U = U + G
+        // (Xq - Xp)^-1 mod p
+        mpz_sub(p->r, ctx->G->x, p->U->x);
+    }
+    else if (H == 1) {
+        // U = 2U
+        // 2y^-1 mod p
+        mpz_mul_ui(p->r, p->U->y, 2);
+    }
+    else if (H == 2) {
+        // U = U + Q
+        // (Xq - Xp)^-1 mod p
+        mpz_sub(p->r, ctx->Q->x, p->U->x);
+    }
+}
+
 void iter(ECC_ctx ctx, Pet p) {
     /*
         Q = xG
@@ -20,7 +43,7 @@ void iter(ECC_ctx ctx, Pet p) {
 
     if (H == 0) {
         // U = U + G
-        pointAdd(ctx, p->U, ctx->G);
+        pointAdd_slow(ctx, p->U, ctx->G);
         // this means we have incremented a
         mpz_add_ui(p->a, p->a, 1);
         // we work modulo the order of G but it should never be necesseray to reduce
@@ -28,7 +51,7 @@ void iter(ECC_ctx ctx, Pet p) {
     }
     else if (H == 1) {
         // U = 2U
-        pointDouble(ctx, p->U);
+        pointDouble_slow(ctx, p->U);
         // this means we have doubled a and b
         mpz_mul_ui(p->a, p->a, 2);
         mpz_mul_ui(p->b, p->b, 2);
@@ -38,7 +61,7 @@ void iter(ECC_ctx ctx, Pet p) {
     }
     else if (H == 2) {
         // U = U + Q
-        pointAdd(ctx, p->U, ctx->Q);
+        pointAdd_slow(ctx, p->U, ctx->Q);
         // this means we have incremented b
         mpz_add_ui(p->b, p->b, 1);
         // we work modulo the order of G but it should never be necesseray to reduce
@@ -52,10 +75,14 @@ int pollard_rho_worker(mpz_t seed) {
         Parallelized Pollard's Rho algorithm worker process.
         Walk a pseudo-random sequence until a distinguished point is found.
     */
+    int NPETS = 100; // 1: 5_720_567  2: 11_441_133   100: 13_603_690
     ECC_ctx_t ctx;
     Point_t G, Q;
-    Pet_t tortoise;
+    Pet_t pets[NPETS];
     gmp_randstate_t state;
+    unsigned int count = 0;
+    size_t i;
+    int found;
 
     gmp_randinit_default(state); // mersenne twister by default, which is fast
 	gmp_randseed(state, seed);
@@ -67,19 +94,34 @@ int pollard_rho_worker(mpz_t seed) {
     ctx->G = G;
     ctx->Q = Q;
 
-    init_randomPet(ctx, state, tortoise);
+    // initialize all pets
+    for (i = 0; i < NPETS; i++) {
+        init_randomPet(ctx, state, pets[i]);
+    }
+    
+    do {
+        // no dinstinguished point found in this batch
+        found = 0;
+        // iter all pets and check for distinguised point
+        for (i = 0; i < NPETS && !found; i++) {
+            iter(ctx, pets[i]);
+            // distinguished point has 24 zero LSB (this is arbitrary)
+            found |= (pets[i]->U->x->_mp_d[0] % 0x1000000 == 0);
+            count++;
+        }
+    // next batch
+    } while (!found);
 
-    do {        
-        iter(ctx, tortoise);
-    // distinguished point has 24 zero LSB (this is arbitrary)
-    } while (tortoise->U->x->_mp_d[0] % 0x1000000);
-
-    print_Pet(tortoise);
+    print_Pet(pets[i-1]); // i-1 points to the distinguished point Pet
+    printf("nb iter: %u\n", count);
     
     clear_point(G);
     clear_point(Q);
     clear_ctx(ctx);
-    clear_Pet(tortoise);
+    // clear all pets
+    for (i = 0; i < NPETS && !found; i++) {
+        clear_Pet(pets[i]);
+    }
 
     return 0;
 }
@@ -89,7 +131,8 @@ int main(int argc, char *argv[]) {
     mpz_t seed;
     if (argc < 2) {
         // in case no seed is given, just use the current time
-        mpz_init_set_ui(seed, time(NULL));
+        // mpz_init_set_ui(seed, time(NULL));
+        mpz_init_set_ui(seed, 11);
     }
     else {
         mpz_init_set_str(seed, argv[1], 10);

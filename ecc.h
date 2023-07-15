@@ -34,8 +34,10 @@ void clear_ctx(ECC_ctx ctx);
 int pointEqual(Point A, Point B);
 int isInfinity(Point A);
 
-void pointDouble(ECC_ctx ctx, Point P);
-void pointAdd(ECC_ctx ctx, Point P, Point Q);
+void pointDouble(ECC_ctx ctx, Point P, mpz_t r);
+void pointDouble_slow(ECC_ctx ctx, Point P);
+void pointAdd(ECC_ctx ctx, Point P, Point Q, mpz_t r);
+void pointAdd_slow(ECC_ctx ctx, Point P, Point Q);
 void pointMul(ECC_ctx ctx, Point P, mpz_t k);
 
 #endif
